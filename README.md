@@ -68,3 +68,7 @@ AUTHOR
 
 1.0                            07 February 2017                         fag(1)
 ```
+
+## Notes
+
+I've written this program for the [`tzap`/`szap`](https://linuxtv.org/wiki/index.php/Zap) utilities. They take a few seconds until the TV card/stick is tuned, and won't fork off when they are ready (If you terminate them, the tuning will end). Instead of waiting a few seconds, and hoping for the best, this does the exactly right thing. 
