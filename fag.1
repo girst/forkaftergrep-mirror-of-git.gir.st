@@ -1,0 +1,97 @@
+.\" Manpage for nuseradd.
+.\" Contact vivek@nixcraft.net.in to correct errors or typos.
+.TH fag 1 "07 February 2017" "1.0" "User Commands"
+.hy 0
+.SH NAME
+fag \- daemonize program after a string was found (ForkAfterGrep)
+.
+.SH SYNOPSIS
+.B fag
+.RI [ OPTIONS ]
+.I PATTERN
+.I PROGRAM
+.RI [ ARGUMENTS .\|.\|.]
+.br
+.SH DESCRIPTION
+.B fag
+searches the
+.IR PROGRAM
+for the string
+.IR PATTERN .
+This is useful if a program takes a while to initialize and prints a message to stdout or stderr when ready. When placed in a script,
+.B fag
+blocks execution until the pattern was found, then daemonizes the child process, returns the PID on stdout and exits.
+.SH OPTIONS
+.SS "Behaviour Changing Options"
+.TP
+.BI \-t " SECONDS" "\fR
+Set a timeout of
+.I SECONDS
+seconds.
+.TP
+.BR \-k " [" \fISIGNAL\fP "]
+If given, send a signal to
+.IR PROGRAM .
+.I SIGNAL
+defaults to 
+.BR SIGTERM " (15)."
+Right now, only decimal notation is implemented.
+.TP
+.BR \-e
+Search
+.IR PATTERN
+on
+.BR stderr
+instead of 
+.BR stdout .
+.SS "Generic Program Information"
+.TP
+.B \-h
+Output a short usage message and exit.
+.TP
+.BR \-v
+Display version and copyright information and exit.
+.SH EXIT STATUS
+If
+.IR PATTERN
+was found, 0 is returned. Otherwise, the exit status follows the BSD guideline outlined in 
+.B #include <sysexits.h>
+if the error occured from within
+.B fag
+or in case the chid process exits prematurely, its exit code is inherited. Notably, \fI69\fP is returned when the timeout is reached.
+.\".RS
+.\".IP *
+.\"EX_OK (0): successful termination
+.\".IP *
+.\"EX_UNAVAILABLE (69): PROGRAM timed out
+.\".IP *
+.\"EX_USAGE (64): command was used incorrectly (argument error)
+.\".IP *
+.\"EX_OSERR (71): system error (can't fork, pipe, etc.)
+.\".IP *
+.\"EX_IOERR (74): input/output error (e.g. can't read)
+.\".RE
+.SH BUGS
+.SS Known Bugs
+Only a simple string search is performed on
+.IR PATTERN
+in this version.
+.PP
+If a
+.IR PROGRAM
+like
+.BR cat
+opens stdout/stderr, but never writes to it, the timeout isn't triggered.
+.PP
+.IR SIGNAL
+needs to be given as an integer; mnemonic should be supported in the future.
+.PP
+Sometimes, stdin behaves strange after the program terminates. 
+.SS Reporting Bugs
+Please report bugs and patches to the issue tracker at https://github.com/girst/forkaftergrep/. 
+.SH NOTES
+Some might find the name of this program offensive. Feel free to create a symlink or alias on your system.
+.SH COPYRIGHT
+Copyright 2017 Tobias Girstmair. This is free software; see https://www.gnu.org/licenses/gpl-3.0.html for conditions.
+.SH AUTHOR
+Tobias Girstmair (http://isticktoit.net)
