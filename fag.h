@@ -15,6 +15,7 @@
 struct opt {
 	int timeout;
 	int kill_sig;
+	int verbose;
 	char* pattern;
 	char** argv;
 	int stream;

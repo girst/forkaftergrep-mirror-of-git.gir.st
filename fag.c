@@ -13,14 +13,14 @@
 #include <unistd.h>
 #include "fag.h"
 
-struct opt opts = {0, 0, NULL, NULL, STDOUT_FILENO};
+struct opt opts = {0, 0, 0, NULL, NULL, STDOUT_FILENO};
 
 int main (int argc, char** argv) {
 	int opt;
 	opterr = 0;
 
 	/* the `+' forces getopt to stop at the first non-option */
-	while ((opt = getopt (argc, argv, "+t:k::ehv")) != -1) {
+	while ((opt = getopt (argc, argv, "+t:k::eVhv")) != -1) {
 		switch (opt) {
 		case 't':
 			opts.timeout = atoi (optarg);
@@ -30,6 +30,9 @@ int main (int argc, char** argv) {
 			break;
 		case 'e':
 			opts.stream = STDERR_FILENO;
+			break;
+		case 'V':
+			opts.verbose = 1;
 			break;
 		case 'h':
 			fprintf (stderr, VERTEXT USAGE
@@ -69,10 +72,6 @@ int main (int argc, char** argv) {
 }
 
 int fork_after_grep (struct opt opts) {
-        printf ("timeout:\t%d\n" "kill_sig:\t%d\n" "pattern: \t%s\n" "stream:  \t%d\n" "program: \t"
-                , opts.timeout, opts.kill_sig, opts.pattern, opts.stream);
-        for (char** p = opts.argv; *p;) printf ("%s ", *p++); putchar ('\n');
-
 	int pipefd[2];
 	pid_t cpid;
 	int status;
@@ -116,6 +115,7 @@ int fork_after_grep (struct opt opts) {
 
 		for (;;) {
 			usleep (20000);
+			memset (buf, 0, BUF_SIZE);
 			nbytes = read (pipefd[0], buf, BUF_SIZE);
 			if (nbytes == -1) {
 				switch (errno) {
@@ -136,6 +136,9 @@ int fork_after_grep (struct opt opts) {
 				}
 				return EX_UNAVAILABLE;
 			}
+			if (op.verbose) {
+				fputs (buf, opts.stream==STDERR_FILENO?stderr:stdout);
+			}
 			if (strstr (buf, opts.pattern) != NULL) {
 				printf ("%d\n", cpid);
 				/* create a new child to keep pipe alive (will exit with exec'd program) */
@@ -143,12 +146,10 @@ int fork_after_grep (struct opt opts) {
 					while (kill(cpid, 0) != -1 && errno != ESRCH ) sleep (1);
 					close (pipefd[0]);
 					close (pipefd[1]);
-//close(0);close(1);close(2);
 					_exit(0);
 				}
 				close (pipefd[0]);
 				close (pipefd[1]);
-//close(0);close(1);close(2);
 				return EX_OK;
 			}
 
