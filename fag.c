@@ -69,10 +69,6 @@ int main (int argc, char** argv) {
 }
 
 int fork_after_grep (struct opt opts) {
-        printf ("timeout:\t%d\n" "kill_sig:\t%d\n" "pattern: \t%s\n" "stream:  \t%d\n" "program: \t"
-                , opts.timeout, opts.kill_sig, opts.pattern, opts.stream);
-        for (char** p = opts.argv; *p;) printf ("%s ", *p++); putchar ('\n');
-
 	int pipefd[2];
 	pid_t cpid;
 	int status;
@@ -143,12 +139,10 @@ int fork_after_grep (struct opt opts) {
 					while (kill(cpid, 0) != -1 && errno != ESRCH ) sleep (1);
 					close (pipefd[0]);
 					close (pipefd[1]);
-//close(0);close(1);close(2);
 					_exit(0);
 				}
 				close (pipefd[0]);
 				close (pipefd[1]);
-//close(0);close(1);close(2);
 				return EX_OK;
 			}
 
