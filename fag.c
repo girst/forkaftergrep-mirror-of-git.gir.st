@@ -136,7 +136,7 @@ int fork_after_grep (struct opt opts) {
 				}
 				return EX_UNAVAILABLE;
 			}
-			if (op.verbose) {
+			if (opts.verbose) {
 				fputs (buf, opts.stream==STDERR_FILENO?stderr:stdout);
 			}
 			if (strstr (buf, opts.pattern) != NULL) {
