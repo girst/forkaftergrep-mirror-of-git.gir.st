@@ -1,5 +1,5 @@
 /* forkaftergrep (C) 2017 Tobias Girstmair, GPLv3 */
-//TODO: close all descriptors (grep)?
+//TODO: supply user arguments to grep
 //demo: ./fag -e -V "MPD server running at" mopidy
 
 #define _XOPEN_SOURCE 500
@@ -114,15 +114,17 @@ int fork_after_grep (struct opt opts) {
 		int pipefd_togrep[2];
 		int grep_status;
 		/* `-q': don't print anything; exit with 0 on match; with 1 on error */
-		char* grepargv[] = {"grep", "-q", opts.pattern, NULL};//"-E", //TODO: supply params (-E, -P, etc.) to grep from command line
+		char* grepargv[] = {"grep", "-q", opts.pattern, NULL};
 
 		close (pipefd[1]);
 		fcntl (pipefd[0], F_SETFL, fcntl (pipefd[0], F_GETFL, 0) | O_NONBLOCK);
 
-		gettimeofday (&begin, NULL);
+		gettimeofday (&begin, NULL); /* for timeout */
 
 		if (pipe(pipefd_togrep) == -1) {
 			fprintf (stderr, "pipe error (grep)\n");
+			close (pipefd[0]);
+			close (pipefd[1]);
 			return EX_OSERR;
 		}
 
@@ -130,6 +132,8 @@ int fork_after_grep (struct opt opts) {
 			fprintf (stderr, "fork error (grep): %s", strerror (errno));
 			close (pipefd[0]);
 			close (pipefd[1]);
+			close (pipefd_togrep[0]);
+			close (pipefd_togrep[1]);
 			return EX_OSERR;
 		}
 
@@ -145,9 +149,10 @@ int fork_after_grep (struct opt opts) {
 			fprintf (stderr, "exec error (grep): %s", strerror (errno));
 			_exit (EX_UNAVAILABLE);
 		} else {
+			close (pipefd_togrep[0]);
 			for (;;) {
 				usleep (20000);
-				memset (buf, 0, BUF_SIZE);
+				memset (buf, 0, BUF_SIZE); /* necessary for opts.verbose */
 				nbytes = read (pipefd[0], buf, BUF_SIZE);
 				if (nbytes == -1) {
 					switch (errno) {
@@ -157,12 +162,16 @@ int fork_after_grep (struct opt opts) {
 						fprintf (stderr, "read error (userprog): %s", strerror (errno));
 						close (pipefd[0]);
 						close (pipefd[1]);
+						close (pipefd_togrep[1]);
+						//TODO: kill grep?
 						return EX_IOERR;
 					}
 				} else if (nbytes == 0) {
 					fprintf (stderr, "Child program exited prematurely (userprog).\n");
 					close (pipefd[0]);
 					close (pipefd[1]);
+					close (pipefd_togrep[1]);
+					//TODO: kill grep?
 					if (waitpid (cpid, &status, WNOHANG) > 0 && WIFEXITED (status)) {
 						return WEXITSTATUS (status);
 					}
@@ -177,9 +186,12 @@ int fork_after_grep (struct opt opts) {
 				}
 
 				if (waitpid (grep_cpid, &grep_status, WNOHANG) > 0 && WIFEXITED (grep_status)) {
+					close (pipefd_togrep[1]);
+
 					if (WEXITSTATUS(grep_status) == 0) {
 						/* grep exited with match found */
 						printf ("%d\n", cpid);
+
 						/* create a new child to keep pipe alive (will exit with exec'd program) */
 						if (!fork ()) {
 							while (kill(cpid, 0) != -1 && errno != ESRCH ) sleep (1);
@@ -208,6 +220,8 @@ int fork_after_grep (struct opt opts) {
 						if (opts.kill_sig > 0) kill (cpid, opts.kill_sig);
 						close (pipefd[0]);
 						close (pipefd[1]);
+						close (pipefd_togrep[1]);
+						//TODO: kill grep?
 						return EX_UNAVAILABLE;
 					}
 				}
