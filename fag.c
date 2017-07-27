@@ -108,60 +108,88 @@ int fork_after_grep (struct opt opts) {
 		fprintf (stderr, "exec error: %s", strerror (errno));
 		_exit (EX_UNAVAILABLE);
 	} else {
+		pid_t grep_cpid;
+		int grep_pipefd[2];
+		//char grep_buf[BUF_SIZE];
+		//int grep_nbytes;
+		//char* grepargv[] = {"cat", NULL};
+		char* grepargv[] = {"grep", opts.pattern, NULL};//"-E", //TODO: supply params (-E, -P, etc.) to grep from command line
+
 		close (pipefd[1]);
 		fcntl (pipefd[0], F_SETFL, fcntl (pipefd[0], F_GETFL, 0) | O_NONBLOCK);
 
 		gettimeofday (&begin, NULL);
 
-		for (;;) {
-			usleep (20000);
-			memset (buf, 0, BUF_SIZE);
-			nbytes = read (pipefd[0], buf, BUF_SIZE);
-			if (nbytes == -1) {
-				switch (errno) {
-				case EAGAIN:
-					continue;
-				default:
-					fprintf (stderr, "read error: %s", strerror (errno));
+		if (pipe(grep_pipefd) == -1) {
+			fprintf (stderr, "mygrep - pipe error\n");
+			return EX_OSERR;
+		}
+		if ((grep_cpid = fork()) == -1) {
+			fprintf (stderr, "mygrep - fork error: %s", strerror (errno));
+			close (pipefd[0]);
+			close (pipefd[1]);
+			return EX_OSERR;
+		}
+		if (grep_cpid == 0) {
+			close(grep_pipefd[1]);
+			dup2(grep_pipefd[0], STDIN_FILENO);
+			close(grep_pipefd[0]);
+			close(STDERR_FILENO);
+			execvp (grepargv[0], grepargv);
+			fprintf (stderr, "mygrep - exec error: %s", strerror (errno));
+			_exit (EX_UNAVAILABLE);
+		} else {
+			for (;;) {
+				usleep (20000);
+				memset (buf, 0, BUF_SIZE);
+				nbytes = read (pipefd[0], buf, BUF_SIZE);
+				if (nbytes == -1) {
+					switch (errno) {
+					case EAGAIN:
+						continue;
+					default:
+						fprintf (stderr, "read error: %s", strerror (errno));
+						close (pipefd[0]);
+						close (pipefd[1]);
+						return EX_IOERR;
+					}
+				} else if (nbytes == 0) {
+					fprintf (stderr, "Child program exited prematurely.\n");
 					close (pipefd[0]);
 					close (pipefd[1]);
-					return EX_IOERR;
-				}
-			} else if (nbytes == 0) {
-				fprintf (stderr, "Child program exited prematurely.\n");
-				close (pipefd[0]);
-				close (pipefd[1]);
-				if (waitpid (cpid, &status, WNOHANG) > 0 && WIFEXITED (status)) {
-					return WEXITSTATUS (status);
-				}
-				return EX_UNAVAILABLE;
-			}
-			if (opts.verbose) {
-				fputs (buf, opts.stream==STDERR_FILENO?stderr:stdout);
-			}
-			if (strstr (buf, opts.pattern) != NULL) {
-				printf ("%d\n", cpid);
-				/* create a new child to keep pipe alive (will exit with exec'd program) */
-				if (!fork ()) {
-					while (kill(cpid, 0) != -1 && errno != ESRCH ) sleep (1);
-					close (pipefd[0]);
-					close (pipefd[1]);
-					_exit(0);
-				}
-				close (pipefd[0]);
-				close (pipefd[1]);
-				return EX_OK;
-			}
-
-			if (opts.timeout > 0) {
-				gettimeofday (&now, NULL);
-				timersub (&now, &begin, &diff);
-				if (diff.tv_sec >= opts.timeout) {
-					fprintf (stderr, "Timeout reached. \n");
-					if (opts.kill_sig > 0) kill (cpid, opts.kill_sig);
-					close (pipefd[0]);
-					close (pipefd[1]);
+					if (waitpid (cpid, &status, WNOHANG) > 0 && WIFEXITED (status)) {
+						return WEXITSTATUS (status);
+					}
 					return EX_UNAVAILABLE;
+				}
+				if (opts.verbose) {
+					fputs (buf, opts.stream==STDERR_FILENO?stderr:stdout);
+				}
+				write(grep_pipefd[1], buf, strlen(buf));/*************/
+				if (strstr (buf, opts.pattern) != NULL) {
+					printf ("%d\n", cpid);
+					/* create a new child to keep pipe alive (will exit with exec'd program) */
+					if (!fork ()) {
+						while (kill(cpid, 0) != -1 && errno != ESRCH ) sleep (1);
+						close (pipefd[0]);
+						close (pipefd[1]);
+						_exit(0);
+					}
+					close (pipefd[0]);
+					close (pipefd[1]);
+					return EX_OK;
+				}
+
+				if (opts.timeout > 0) {
+					gettimeofday (&now, NULL);
+					timersub (&now, &begin, &diff);
+					if (diff.tv_sec >= opts.timeout) {
+						fprintf (stderr, "Timeout reached. \n");
+						if (opts.kill_sig > 0) kill (cpid, opts.kill_sig);
+						close (pipefd[0]);
+						close (pipefd[1]);
+						return EX_UNAVAILABLE;
+					}
 				}
 			}
 		}
