@@ -1,6 +1,4 @@
-.\" Manpage for nuseradd.
-.\" Contact vivek@nixcraft.net.in to correct errors or typos.
-.TH fag 1 "07 February 2017" "1.0" "User Commands"
+.TH fag 1 "28 July 2017" "1.0" "User Commands"
 .hy 0
 .SH NAME
 fag \- daemonize program after a string was found (ForkAfterGrep)
@@ -14,13 +12,13 @@ fag \- daemonize program after a string was found (ForkAfterGrep)
 .br
 .SH DESCRIPTION
 .B fag
-searches the
+uses
+.B grep
+to search the output of
 .IR PROGRAM
-for the string
-.IR PATTERN .
-This is useful if a program takes a while to initialize and prints a message to stdout or stderr when ready. When placed in a script,
-.B fag
-blocks execution until the pattern was found, then daemonizes the child process, returns the PID on stdout and exits.
+for the regular expression
+.IR PATTERN
+and daemonizes it when a match is found. The PID is then returned on stdout. 
 .SH OPTIONS
 .SS "Behaviour Changing Options"
 .TP
@@ -66,18 +64,6 @@ was found, 0 is returned. Otherwise, the exit status follows the BSD guideline o
 if the error occured from within
 .B fag
 or in case the chid process exits prematurely, its exit code is inherited. Notably, \fI69\fP is returned when the timeout is reached.
-.\".RS
-.\".IP *
-.\"EX_OK (0): successful termination
-.\".IP *
-.\"EX_UNAVAILABLE (69): PROGRAM timed out
-.\".IP *
-.\"EX_USAGE (64): command was used incorrectly (argument error)
-.\".IP *
-.\"EX_OSERR (71): system error (can't fork, pipe, etc.)
-.\".IP *
-.\"EX_IOERR (74): input/output error (e.g. can't read)
-.\".RE
 .SH BUGS
 .SS Known Bugs
 .IR SIGNAL
