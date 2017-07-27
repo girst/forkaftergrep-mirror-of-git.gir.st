@@ -41,7 +41,8 @@ int main (int argc, char** argv) {
 				"Options:\n"
 				"\t-t N\ttimeout after N seconds\n"
 				"\t-k [M]\tsend signal M to child after timeout (default: 15/SIGTERM)\n"
-				"\t-e\tgrep on stderr instead of stdout\n", argv[0]);
+				"\t-e\tgrep on stderr instead of stdout\n"
+				"\t-V\tbe verbose; print PROGRAM's stdout/stderr to stderr\n", argv[0]);
 			return EX_OK;
 		case 'v':
 			fprintf (stderr, VERTEXT);
