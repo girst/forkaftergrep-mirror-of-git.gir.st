@@ -1,7 +1,7 @@
 /* forkaftergrep (C) 2017 Tobias Girstmair, GPLv3 */
 
 #define _XOPEN_SOURCE 500
-#define _BSD_SOURCE
+#define _DEFAULT_SOURCE
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
