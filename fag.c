@@ -1,4 +1,6 @@
 /* forkaftergrep (C) 2017 Tobias Girstmair, GPLv3 */
+//TODO: close all descriptors (grep)?
+//demo: ./fag -e -V "MPD server running at" mopidy
 
 #define _XOPEN_SOURCE 500
 #define _DEFAULT_SOURCE
@@ -82,12 +84,12 @@ int fork_after_grep (struct opt opts) {
 	struct timeval begin, now, diff;
 
 	if (pipe(pipefd) == -1) {
-		fprintf (stderr, "pipe error\n");
+		fprintf (stderr, "pipe error (userprog)\n");
 		return EX_OSERR;
 	}
 
 	if ((cpid = fork()) == -1) {
-		fprintf (stderr, "fork error: %s", strerror (errno));
+		fprintf (stderr, "fork error (userprog): %s", strerror (errno));
 		close (pipefd[0]);
 		close (pipefd[1]);
 		return EX_OSERR;
@@ -100,43 +102,47 @@ int fork_after_grep (struct opt opts) {
 		close (opts.stream==STDOUT_FILENO?STDERR_FILENO:STDOUT_FILENO);
 
 		if (setsid () == -1) {
-			fprintf (stderr, "setsid error: %s", strerror (errno));
+			fprintf (stderr, "setsid error (userprog): %s", strerror (errno));
 			_exit (EX_OSERR);
 		}
 
 		execvp (opts.argv[0], opts.argv);
-		fprintf (stderr, "exec error: %s", strerror (errno));
+		fprintf (stderr, "exec error (userprog): %s", strerror (errno));
 		_exit (EX_UNAVAILABLE);
 	} else {
 		pid_t grep_cpid;
-		int grep_pipefd[2];
-		//char grep_buf[BUF_SIZE];
-		//int grep_nbytes;
-		//char* grepargv[] = {"cat", NULL};
-		char* grepargv[] = {"grep", opts.pattern, NULL};//"-E", //TODO: supply params (-E, -P, etc.) to grep from command line
+		int pipefd_togrep[2];
+		int grep_status;
+		/* `-q': don't print anything; exit with 0 on match; with 1 on error */
+		char* grepargv[] = {"grep", "-q", opts.pattern, NULL};//"-E", //TODO: supply params (-E, -P, etc.) to grep from command line
 
 		close (pipefd[1]);
 		fcntl (pipefd[0], F_SETFL, fcntl (pipefd[0], F_GETFL, 0) | O_NONBLOCK);
 
 		gettimeofday (&begin, NULL);
 
-		if (pipe(grep_pipefd) == -1) {
-			fprintf (stderr, "mygrep - pipe error\n");
+		if (pipe(pipefd_togrep) == -1) {
+			fprintf (stderr, "pipe error (grep)\n");
 			return EX_OSERR;
 		}
+
 		if ((grep_cpid = fork()) == -1) {
-			fprintf (stderr, "mygrep - fork error: %s", strerror (errno));
+			fprintf (stderr, "fork error (grep): %s", strerror (errno));
 			close (pipefd[0]);
 			close (pipefd[1]);
 			return EX_OSERR;
 		}
+
 		if (grep_cpid == 0) {
-			close(grep_pipefd[1]);
-			dup2(grep_pipefd[0], STDIN_FILENO);
-			close(grep_pipefd[0]);
-			close(STDERR_FILENO);
+			close (pipefd_togrep[1]);
+			dup2 (pipefd_togrep[0], STDIN_FILENO);
+			close (pipefd_togrep[0]);
+
+			close (STDERR_FILENO);
+			close (STDOUT_FILENO);
+
 			execvp (grepargv[0], grepargv);
-			fprintf (stderr, "mygrep - exec error: %s", strerror (errno));
+			fprintf (stderr, "exec error (grep): %s", strerror (errno));
 			_exit (EX_UNAVAILABLE);
 		} else {
 			for (;;) {
@@ -146,38 +152,52 @@ int fork_after_grep (struct opt opts) {
 				if (nbytes == -1) {
 					switch (errno) {
 					case EAGAIN:
-						continue;
+						break;
 					default:
-						fprintf (stderr, "read error: %s", strerror (errno));
+						fprintf (stderr, "read error (userprog): %s", strerror (errno));
 						close (pipefd[0]);
 						close (pipefd[1]);
 						return EX_IOERR;
 					}
 				} else if (nbytes == 0) {
-					fprintf (stderr, "Child program exited prematurely.\n");
+					fprintf (stderr, "Child program exited prematurely (userprog).\n");
 					close (pipefd[0]);
 					close (pipefd[1]);
 					if (waitpid (cpid, &status, WNOHANG) > 0 && WIFEXITED (status)) {
 						return WEXITSTATUS (status);
 					}
 					return EX_UNAVAILABLE;
+				} else {
+					/* have new userprog-data, send it to grep */
+					if (opts.verbose) {
+						fputs (buf, stderr);
+					}
+
+					write(pipefd_togrep[1], buf, strlen(buf));
 				}
-				if (opts.verbose) {
-					fputs (buf, opts.stream==STDERR_FILENO?stderr:stdout);
-				}
-				write(grep_pipefd[1], buf, strlen(buf));/*************/
-				if (strstr (buf, opts.pattern) != NULL) {
-					printf ("%d\n", cpid);
-					/* create a new child to keep pipe alive (will exit with exec'd program) */
-					if (!fork ()) {
-						while (kill(cpid, 0) != -1 && errno != ESRCH ) sleep (1);
+
+				if (waitpid (grep_cpid, &grep_status, WNOHANG) > 0 && WIFEXITED (grep_status)) {
+					if (WEXITSTATUS(grep_status) == 0) {
+						/* grep exited with match found */
+						printf ("%d\n", cpid);
+						/* create a new child to keep pipe alive (will exit with exec'd program) */
+						if (!fork ()) {
+							while (kill(cpid, 0) != -1 && errno != ESRCH ) sleep (1);
+							close (pipefd[0]);
+							close (pipefd[1]);
+							_exit(0);
+						}
 						close (pipefd[0]);
 						close (pipefd[1]);
-						_exit(0);
+						return EX_OK;
+					} else {
+						/* grep exited due to an error */
+						fprintf (stderr, "grep exited due to an error.");
+						close (pipefd[0]);
+						close (pipefd[1]);
+						close (pipefd_togrep[1]);
+						return EX_IOERR;
 					}
-					close (pipefd[0]);
-					close (pipefd[1]);
-					return EX_OK;
 				}
 
 				if (opts.timeout > 0) {
