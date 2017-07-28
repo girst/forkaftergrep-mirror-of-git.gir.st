@@ -1,11 +1,11 @@
 /* forkaftergrep (C) 2017 Tobias Girstmair, GPLv3 */
 //TODO: if grep exits with an error, fag thinks a match was found
-//TODO: sometimes fag exits with code 141 (128+SIGPIPE) (line 190)
 
 #define _XOPEN_SOURCE 500
 #define _DEFAULT_SOURCE
 #include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -79,6 +79,8 @@ int main (int argc, char** argv) {
 		fprintf (stderr, USAGE "(Missing PROGRAM)\n", argv[0]);
 		return EX_USAGE;
 	}
+
+	signal (SIGPIPE, SIG_IGN); /* ignore broken pipe between fag and grep */
 
 	int retval = fork_after_grep (opts);
 
@@ -187,7 +189,7 @@ int fork_after_grep (struct opt opts) {
 						write(STDERR_FILENO, buf, nbytes);
 					}
 
-					write(grep_pipefd[1], buf, nbytes); //TODO: sometimes gets SIGPIPE here
+					write(grep_pipefd[1], buf, nbytes); /* can cause SIGPIPE if grep exited, therefore signal will be ignored */
 				}
 
 				// TODO: exits with `0' even if `grep' exits with code > 0 !
