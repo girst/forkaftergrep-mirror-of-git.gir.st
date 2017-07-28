@@ -1,5 +1,6 @@
 /* forkaftergrep (C) 2017 Tobias Girstmair, GPLv3 */
 //TODO: if grep exits with an error, fag thinks a match was found
+//TODO: sometimes fag exits with code 141 (128+SIGPIPE)
 
 #define _XOPEN_SOURCE 500
 #define _DEFAULT_SOURCE
@@ -15,10 +16,14 @@
 #include "fag.h"
 
 int main (int argc, char** argv) {
-	struct opt opts = {0, 0, 0, NULL, NULL, STDOUT_FILENO};
-	struct grepopt optg = {basic_regexp, 0, 0, 0, 0};
+	struct opt opts = {0, 0, 0, NULL, NULL, STDOUT_FILENO, "-q"};
 	int opt;
 	opterr = 0;
+
+	/* generate grep options string */
+	/* `-q': don't print anything; exit with 0 on match; with 1 on error */
+	char* p = opts.grepopt+2; /* move cursor behind `q' */
+
 
 	/* the `+' forces getopt to stop at the first non-option */
 	while ((opt = getopt (argc, argv, "+t:k::eVhvEFGPiwxyU")) != -1) {
@@ -48,21 +53,16 @@ int main (int argc, char** argv) {
 			fprintf (stderr, VERTEXT);
 			return EX_OK;
 		/* `grep' options (Note: missing `-e:', `-f:') */
-		case 'E': optg.regex = extended_regexp; break;
-		case 'F': optg.regex = fixed_strings  ; break;
-		case 'G': optg.regex = basic_regexp   ; break; /* grep default */
-		case 'P': optg.regex = perl_regexp    ; break;
-		case 'i': /* fall thru */
-		case 'y': optg.ignore_case = 1; break;
-		case 'w': optg.word_regexp = 1; break;
-		case 'x': optg.line_regexp = 1; break;
-		case 'U': optg.binary      = 1; break;
+		case 'E': case 'F': case 'G': case 'P':
+		case 'i': case 'y': case 'w': case 'x':
+		case 'U': *(p++)=opt; break;
 
 		default: 
 			fprintf (stderr, "Unrecognized option: %c\n" USAGE, optopt, argv[0]);
 			return EX_USAGE;
 		}
 	}
+	*p = '\0'; /* finish grep_options string */
 
 	/* the first non-option argument is the search string */
 	if (optind < argc) {
@@ -80,12 +80,12 @@ int main (int argc, char** argv) {
 		return EX_USAGE;
 	}
 
-	int retval = fork_after_grep (opts, optg);
+	int retval = fork_after_grep (opts);
 
 	return retval;
 }
 
-int fork_after_grep (struct opt opts, struct grepopt optg) {
+int fork_after_grep (struct opt opts) {
 	int pipefd[2];
 	pid_t cpid;
 	int status;
@@ -134,14 +134,12 @@ int fork_after_grep (struct opt opts, struct grepopt optg) {
 		if (pipe(grep_pipefd) == -1) {
 			fprintf (stderr, "pipe error (grep)\n");
 			close (pipefd[0]);
-			close (pipefd[1]);
 			return EX_OSERR;
 		}
 
 		if ((grep_cpid = fork()) == -1) {
 			fprintf (stderr, "fork error (grep): %s", strerror (errno));
 			close (pipefd[0]);
-			close (pipefd[1]);
 			close (grep_pipefd[0]);
 			close (grep_pipefd[1]);
 			return EX_OSERR;
@@ -155,21 +153,7 @@ int fork_after_grep (struct opt opts, struct grepopt optg) {
 			close (STDERR_FILENO);
 			close (STDOUT_FILENO);
 
-			/* generate argument list on the fly (TODO: ugly) */
-			/* `-q': don't print anything; exit with 0 on match; with 1 on error */
-			char grep_options[16] = "-q";
-			char* p = grep_options+2;
-			if (optg.regex == extended_regexp) *(p++)='E';
-			if (optg.regex == fixed_strings)   *(p++)='F';
-			if (optg.regex == basic_regexp)    *(p++)='G';
-			if (optg.regex == perl_regexp)     *(p++)='P';
-			if (optg.ignore_case)              *(p++)='i';
-			if (optg.word_regexp)              *(p++)='w';
-			if (optg.line_regexp)              *(p++)='x';
-			if (optg.binary)                   *(p++)='U';
-			*p = '\0';
-
-			execlp ("grep", "grep", grep_options, opts.pattern, NULL);
+			execlp ("grep", "grep", opts.grepopt, opts.pattern, NULL);
 			fprintf (stderr, "exec error (grep): %s", strerror (errno));
 			_exit (EX_SOFTWARE);
 		} else {
@@ -184,7 +168,6 @@ int fork_after_grep (struct opt opts, struct grepopt optg) {
 					default:
 						fprintf (stderr, "read error (userprog): %s", strerror (errno));
 						close (pipefd[0]);
-						close (pipefd[1]);
 						close (grep_pipefd[1]);
 						//TODO: kill grep?
 						return EX_IOERR;
@@ -192,7 +175,6 @@ int fork_after_grep (struct opt opts, struct grepopt optg) {
 				} else if (nbytes == 0) {
 					fprintf (stderr, "Child program exited prematurely (userprog).\n");
 					close (pipefd[0]);
-					close (pipefd[1]);
 					close (grep_pipefd[1]);
 					//TODO: kill grep?
 					if (waitpid (cpid, &status, WNOHANG) > 0 && WIFEXITED (status)) {
@@ -220,17 +202,14 @@ int fork_after_grep (struct opt opts, struct grepopt optg) {
 						if (!fork ()) {
 							while (kill(cpid, 0) != -1 && errno != ESRCH ) sleep (1);
 							close (pipefd[0]);
-							close (pipefd[1]);
 							_exit(0);
 						}
 						close (pipefd[0]);
-						close (pipefd[1]);
 						return EX_OK;
 					} else {
 						/* grep exited due to an error */
-						fprintf (stderr, "grep exited due to an error.");
+						fprintf (stderr, "grep exited due to an error.\n");
 						close (pipefd[0]);
-						close (pipefd[1]);
 						close (grep_pipefd[1]);
 						return EX_IOERR;
 					}
@@ -243,7 +222,6 @@ int fork_after_grep (struct opt opts, struct grepopt optg) {
 						fprintf (stderr, "Timeout reached. \n");
 						if (opts.kill_sig > 0) kill (cpid, opts.kill_sig);
 						close (pipefd[0]);
-						close (pipefd[1]);
 						close (grep_pipefd[1]);
 						//TODO: kill grep?
 						return EX_UNAVAILABLE;
