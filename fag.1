@@ -69,6 +69,8 @@ or in case the chid process exits prematurely, its exit code is inherited. Notab
 .IR SIGNAL
 needs to be given as an integer; mnemonic should be supported in the future.
 .PP
+if grep exits with a code > 0, fag should terminate with grep's exit code and an error message. instead, fag exits as if a match was found. 
+.PP
 Sometimes, stdin behaves strange after the program terminates. 
 .SS Reporting Bugs
 Please report bugs and patches to the issue tracker at https://github.com/girst/forkaftergrep/. 

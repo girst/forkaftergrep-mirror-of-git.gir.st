@@ -1,5 +1,5 @@
 /* forkaftergrep (C) 2017 Tobias Girstmair, GPLv3 */
-//TODO: EX_UNAVAILABLE is wrongly used three times
+//TODO: if grep exits with an error, fag thinks a match was found
 
 #define _XOPEN_SOURCE 500
 #define _DEFAULT_SOURCE
@@ -41,7 +41,8 @@ int main (int argc, char** argv) {
 				"\t-t N\ttimeout after N seconds\n"
 				"\t-k [M]\tsend signal M to child after timeout (default: 15/SIGTERM)\n"
 				"\t-e\tgrep on stderr instead of stdout\n"
-				"\t-V\tbe verbose; print PROGRAM's stdout/stderr to stderr\n", argv[0]);
+				"\t-V\tbe verbose; print PROGRAM's stdout/stderr to stderr\n"
+				"\t-[EFGPiwxyU]\t grep options\n", argv[0]);
 			return EX_OK;
 		case 'v':
 			fprintf (stderr, VERTEXT);
@@ -49,7 +50,7 @@ int main (int argc, char** argv) {
 		/* `grep' options (Note: missing `-e:', `-f:') */
 		case 'E': optg.regex = extended_regexp; break;
 		case 'F': optg.regex = fixed_strings  ; break;
-		case 'G': optg.regex = basic_regexp   ; break; /* default */
+		case 'G': optg.regex = basic_regexp   ; break; /* grep default */
 		case 'P': optg.regex = perl_regexp    ; break;
 		case 'i': /* fall thru */
 		case 'y': optg.ignore_case = 1; break;
@@ -170,7 +171,7 @@ int fork_after_grep (struct opt opts, struct grepopt optg) {
 
 			execlp ("grep", "grep", grep_options, opts.pattern, NULL);
 			fprintf (stderr, "exec error (grep): %s", strerror (errno));
-			_exit (EX_UNAVAILABLE);
+			_exit (EX_SOFTWARE);
 		} else {
 			close (grep_pipefd[0]);
 			for (;;) {
@@ -208,6 +209,7 @@ int fork_after_grep (struct opt opts, struct grepopt optg) {
 					write(grep_pipefd[1], buf, nbytes);
 				}
 
+				// TODO: exits with `0' even if `grep' exits with code > 0 !
 				if (waitpid (grep_cpid, &grep_status, WNOHANG) > 0 && WIFEXITED (grep_status)) {
 					close (grep_pipefd[1]);
 
