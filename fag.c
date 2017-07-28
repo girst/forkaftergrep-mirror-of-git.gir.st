@@ -202,7 +202,6 @@ int fork_after_grep (struct opt opts, struct grepopt optg) {
 				} else {
 					/* have new userprog-data, send it to grep */
 					if (opts.verbose) {
-						fputs (buf, stderr);
 						write(STDERR_FILENO, buf, nbytes);
 					}
 
