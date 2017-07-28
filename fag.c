@@ -1,6 +1,6 @@
 /* forkaftergrep (C) 2017 Tobias Girstmair, GPLv3 */
 //TODO: if grep exits with an error, fag thinks a match was found
-//TODO: sometimes fag exits with code 141 (128+SIGPIPE)
+//TODO: sometimes fag exits with code 141 (128+SIGPIPE) (line 190)
 
 #define _XOPEN_SOURCE 500
 #define _DEFAULT_SOURCE
@@ -187,7 +187,7 @@ int fork_after_grep (struct opt opts) {
 						write(STDERR_FILENO, buf, nbytes);
 					}
 
-					write(grep_pipefd[1], buf, nbytes);
+					write(grep_pipefd[1], buf, nbytes); //TODO: sometimes gets SIGPIPE here
 				}
 
 				// TODO: exits with `0' even if `grep' exits with code > 0 !
