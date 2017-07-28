@@ -21,6 +21,20 @@ struct opt {
 	int stream;
 };
 
-int fork_after_grep (struct opt opts);
+enum grep_regex {
+	basic_regexp,
+	extended_regexp,
+	fixed_strings,
+	perl_regexp,
+};
+struct grepopt {
+	enum grep_regex regex;
+	int ignore_case;
+	int word_regexp;
+	int line_regexp;
+	int binary;
+};
+
+int fork_after_grep (struct opt opts, struct grepopt optg);
 
 #endif
