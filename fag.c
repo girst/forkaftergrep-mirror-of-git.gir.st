@@ -1,5 +1,4 @@
 /* forkaftergrep (C) 2017 Tobias Girstmair, GPLv3 */
-//TODO: if grep exits with an error, fag thinks a match was found
 
 #define _XOPEN_SOURCE 500
 #define _DEFAULT_SOURCE
@@ -17,12 +16,14 @@
 
 int main (int argc, char** argv) {
 	struct opt opts = {0, 0, 0, NULL, NULL, STDOUT_FILENO, "-q"};
+	/* `-q': don't print anything; exit with 0 on match; with 1 on error. used to interface with `grep' */
 	int opt;
 	opterr = 0;
 
 	/* generate grep options string */
-	/* `-q': don't print anything; exit with 0 on match; with 1 on error */
 	char* p = opts.grepopt+2; /* move cursor behind `q' */
+
+	signal (SIGPIPE, SIG_IGN); /* ignore broken pipe between fag and grep */
 
 
 	/* the `+' forces getopt to stop at the first non-option */
@@ -44,10 +45,11 @@ int main (int argc, char** argv) {
 			fprintf (stderr, VERTEXT USAGE
 				"Options:\n"
 				"\t-t N\ttimeout after N seconds\n"
-				"\t-k [M]\tsend signal M to child after timeout (default: 15/SIGTERM)\n"
+				"\t-k[M]\tsend signal M to child after timeout (default: 15/SIGTERM)\n"
 				"\t-e\tgrep on stderr instead of stdout\n"
 				"\t-V\tbe verbose; print PROGRAM's stdout/stderr to stderr\n"
-				"\t-[EFGPiwxyU]\t grep options\n", argv[0]);
+				"\t-[EFP]\tgrep: matcher selection\n"
+				"\t-[iwxU]\tgrep: matching control\n", argv[0]);
 			return EX_OK;
 		case 'v':
 			fprintf (stderr, VERTEXT);
@@ -62,7 +64,7 @@ int main (int argc, char** argv) {
 			return EX_USAGE;
 		}
 	}
-	*p = '\0'; /* finish grep_options string */
+	*p = '\0'; /* terminate grep_options string */
 
 	/* the first non-option argument is the search string */
 	if (optind < argc) {
@@ -79,8 +81,6 @@ int main (int argc, char** argv) {
 		fprintf (stderr, USAGE "(Missing PROGRAM)\n", argv[0]);
 		return EX_USAGE;
 	}
-
-	signal (SIGPIPE, SIG_IGN); /* ignore broken pipe between fag and grep */
 
 	int retval = fork_after_grep (opts);
 
@@ -171,14 +171,14 @@ int fork_after_grep (struct opt opts) {
 						fprintf (stderr, "read error (userprog): %s", strerror (errno));
 						close (pipefd[0]);
 						close (grep_pipefd[1]);
-						//TODO: kill grep?
+						kill (grep_cpid, SIGTERM);
 						return EX_IOERR;
 					}
 				} else if (nbytes == 0) {
 					fprintf (stderr, "Child program exited prematurely (userprog).\n");
 					close (pipefd[0]);
 					close (grep_pipefd[1]);
-					//TODO: kill grep?
+					kill (grep_cpid, SIGTERM);
 					if (waitpid (cpid, &status, WNOHANG) > 0 && WIFEXITED (status)) {
 						return WEXITSTATUS (status);
 					}
@@ -192,7 +192,6 @@ int fork_after_grep (struct opt opts) {
 					write(grep_pipefd[1], buf, nbytes); /* can cause SIGPIPE if grep exited, therefore signal will be ignored */
 				}
 
-				// TODO: exits with `0' even if `grep' exits with code > 0 !
 				if (waitpid (grep_cpid, &grep_status, WNOHANG) > 0 && WIFEXITED (grep_status)) {
 					close (grep_pipefd[1]);
 
@@ -225,7 +224,7 @@ int fork_after_grep (struct opt opts) {
 						if (opts.kill_sig > 0) kill (cpid, opts.kill_sig);
 						close (pipefd[0]);
 						close (grep_pipefd[1]);
-						//TODO: kill grep?
+						kill (grep_cpid, SIGTERM);
 						return EX_UNAVAILABLE;
 					}
 				}
