@@ -1,4 +1,5 @@
 /* forkaftergrep (C) 2017 Tobias Girstmair, GPLv3 */
+//TODO: `tee': bad file descriptor
 
 #define _XOPEN_SOURCE 500
 #define _DEFAULT_SOURCE
@@ -113,6 +114,7 @@ int fork_after_grep (struct opt opts) {
 		close (pipefd[0]);
 		dup2 (pipefd[1], opts.stream);
 		close (pipefd[1]);
+		//dup2 (open("/dev/null", O_WRONLY), opts.stream==STDOUT_FILENO?STDERR_FILENO:STDOUT_FILENO);
 		close (opts.stream==STDOUT_FILENO?STDERR_FILENO:STDOUT_FILENO);
 
 		if (setsid () == -1) {
@@ -201,6 +203,9 @@ int fork_after_grep (struct opt opts) {
 
 						/* create a new child to keep pipe alive (will exit with exec'd program) */
 						if (!fork ()) {
+							int devnull = open("/dev/null", O_WRONLY);
+							dup2 (devnull, pipefd[0]);
+							close  (devnull);
 							while (kill(cpid, 0) != -1 && errno != ESRCH ) sleep (1);
 							close (pipefd[0]);
 							_exit(0);
