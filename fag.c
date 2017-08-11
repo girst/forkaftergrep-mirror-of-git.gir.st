@@ -1,5 +1,5 @@
 /* forkaftergrep (C) 2017 Tobias Girstmair, GPLv3 */
-//TODO: `tee': bad file descriptor
+//TODO: if grep exits with an error, fag thinks a match was found
 
 #define _XOPEN_SOURCE 500
 #define _DEFAULT_SOURCE
@@ -194,6 +194,7 @@ int fork_after_grep (struct opt opts) {
 					write(grep_pipefd[1], buf, nbytes); /* can cause SIGPIPE if grep exited, therefore signal will be ignored */
 				}
 
+				// TODO: exits with `0' even if `grep' exits with code > 0 !
 				if (waitpid (grep_cpid, &grep_status, WNOHANG) > 0 && WIFEXITED (grep_status)) {
 					close (grep_pipefd[1]);
 

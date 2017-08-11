@@ -66,16 +66,14 @@ if the error occured from within
 or in case the chid process exits prematurely, its exit code is inherited. Notably, \fI69\fP is returned when the timeout is reached.
 .SH BUGS
 .SS Known Bugs
-.IR SIGNAL
-needs to be given as an integer; mnemonic should be supported in the future.
-.PP
 if grep exits with a code > 0, fag should terminate with grep's exit code and an error message. instead, fag exits as if a match was found. 
 .PP
 Sometimes, stdin behaves strange after the program terminates. 
 .SS Reporting Bugs
 Please report bugs and patches to the issue tracker at https://github.com/girst/forkaftergrep/. 
 .SH NOTES
-Some might find the name of this program offensive. Feel free to create a symlink or alias on your system.
+.IR SIGNAL
+needs to be given as an integer. implementing mnemonics is dirty and not very portable; maybe support in the future.
 .SH COPYRIGHT
 Copyright 2017 Tobias Girstmair. This is free software; see https://www.gnu.org/licenses/gpl-3.0.html for conditions.
 .SH AUTHOR
