@@ -42,8 +42,8 @@ EXIT STATUS
 
 BUGS
    Known Bugs
-       SIGNAL needs to be given as an integer; mnemonic should be supported in
-       the future.
+       if  grep  exits  with a code > 0, fag should terminate with grep's exit
+       code and an error message. instead, fag exits as if a match was found.
 
        Sometimes, stdin behaves strange after the program terminates.
 
@@ -52,8 +52,8 @@ BUGS
        https://github.com/girst/forkaftergrep/.
 
 NOTES
-       Some might find the name of this program offensive. Feel free to create
-       a symlink or alias on your system.
+       SIGNAL needs to be given as an integer. implementing mnemonics is dirty
+       and not very portable; maybe support in the future.
 
 COPYRIGHT
        Copyright  2017  Tobias  Girstmair.  This   is   free   software;   see
@@ -62,7 +62,7 @@ COPYRIGHT
 AUTHOR
        Tobias Girstmair (http://isticktoit.net)
 
-1.0                              28 July 2017                           fag(1)
+1.0                             12 August 2017                          fag(1)
 ```
 
 ## Notes
