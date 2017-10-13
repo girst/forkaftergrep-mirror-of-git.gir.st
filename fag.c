@@ -1,6 +1,7 @@
 /* forkaftergrep (C) 2017 Tobias Girstmair, GPLv3 */
-//TODO: if grep exits with an error, fag thinks a match was found
+//TODO: if grep exits with an error, fag thinks a match was found (e.g. grep -BEP, killall grep)
 //TODO: allow redirect of both streams to files
+//TODO: grep is missing `-e' and `-f' options
 
 #define _XOPEN_SOURCE 500
 #define _DEFAULT_SOURCE
@@ -167,10 +168,9 @@ int fork_after_grep (struct opt opts) {
 			dup2 (grep_pipefd[0], STDIN_FILENO);
 			close (grep_pipefd[0]);
 
-			close (STDERR_FILENO);
 			close (STDOUT_FILENO);
 
-			execlp ("grep", "grep", opts.grepopt, opts.pattern, NULL);
+			execlp ("grep", "grep", opts.grepopt, "--", opts.pattern, NULL);
 			fprintf (stderr, "exec error (grep): %s", strerror (errno));
 			_exit (EX_SOFTWARE);
 		} else {
@@ -207,7 +207,6 @@ int fork_after_grep (struct opt opts) {
 					write(grep_pipefd[1], buf, nbytes); /* can cause SIGPIPE if grep exited, therefore signal will be ignored */
 				}
 
-				// TODO: exits with `0' even if `grep' exits with code > 0 !
 				if (waitpid (grep_cpid, &grep_status, WNOHANG) > 0 && WIFEXITED (grep_status)) {
 					close (grep_pipefd[1]);
 
