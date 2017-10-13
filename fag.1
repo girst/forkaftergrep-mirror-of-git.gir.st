@@ -1,7 +1,7 @@
-.TH fag 1 "12 August 2017" "1.0" "User Commands"
+.TH fag 1 "13 October 2017" "1.1" "User Commands"
 .hy 0
 .SH NAME
-fag \- daemonize program after a string was found (ForkAfterGrep)
+fag \- daemonize program after a regular expression pattern was matched (ForkAfterGrep)
 .
 .SH SYNOPSIS
 .B fag
@@ -74,7 +74,14 @@ Please report bugs and patches to the issue tracker at https://github.com/girst/
 .SH NOTES
 .IR SIGNAL
 needs to be given as an integer. implementing mnemonics is dirty and not very portable; maybe support in the future.
+.PP
+Since 1.1, if
+.B fag
+gets interrupted or terminated, 
+.BR SIGTERM
+is sent to 
+.IR PROGRAM.
 .SH COPYRIGHT
 Copyright 2017 Tobias Girstmair. This is free software; see https://www.gnu.org/licenses/gpl-3.0.html for conditions.
 .SH AUTHOR
-Tobias Girstmair (http://isticktoit.net)
+Tobias Girstmair (https://gir.st)

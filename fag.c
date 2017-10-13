@@ -1,5 +1,6 @@
 /* forkaftergrep (C) 2017 Tobias Girstmair, GPLv3 */
 //TODO: if grep exits with an error, fag thinks a match was found
+//TODO: allow redirect of both streams to files
 
 #define _XOPEN_SOURCE 500
 #define _DEFAULT_SOURCE
@@ -15,6 +16,14 @@
 #include <unistd.h>
 #include "fag.h"
 
+pid_t cpid = 0;
+
+void term_child(int s) {
+	(void)s; /* squash -Werror=unused-parameter */
+	if (cpid != 0) kill (cpid, SIGTERM);
+	exit(1);
+}
+
 int main (int argc, char** argv) {
 	struct opt opts = {0, 0, 0, NULL, NULL, STDOUT_FILENO, "-q"};
 	/* `-q': don't print anything; exit with 0 on match; with 1 on error. used to interface with `grep' */
@@ -25,10 +34,14 @@ int main (int argc, char** argv) {
 	char* p = opts.grepopt+2; /* move cursor behind `q' */
 
 	signal (SIGPIPE, SIG_IGN); /* ignore broken pipe between fag and grep */
+	struct sigaction sa = {0}; /* terminate child if fag gets interrupted/terminated */
+	sa.sa_handler = &term_child; /* NOTE: will also be inherited by keep-pipe-alive-child */
+	sigaction (SIGINT, &sa, NULL);
+	sigaction (SIGTERM, &sa, NULL);
 
 
 	/* the `+' forces getopt to stop at the first non-option */
-	while ((opt = getopt (argc, argv, "+t:k::eVhvEFGPiwxyU")) != -1) {
+	while ((opt = getopt (argc, argv, "+t:k::er:VhvEFGPiwxyU")) != -1) {
 		switch (opt) {
 		case 't':
 			opts.timeout = atoi (optarg);
@@ -90,7 +103,7 @@ int main (int argc, char** argv) {
 
 int fork_after_grep (struct opt opts) {
 	int pipefd[2];
-	pid_t cpid;
+	//pid_t cpid;
 	int status;
 
 	char buf[BUF_SIZE];

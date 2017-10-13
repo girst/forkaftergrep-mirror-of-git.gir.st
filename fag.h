@@ -2,7 +2,7 @@
 #define __FAG_H__
 
 #define PROGRNAME "fag"
-#define VERSION "1.0"
+#define VERSION "1.1"
 #define AUTHOR "Tobias Girstmair"
 #define YEAR "2017"
 #define LICENSE "GNU GPLv3"
