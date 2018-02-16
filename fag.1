@@ -1,4 +1,4 @@
-.TH fag 1 "13 October 2017" "1.1" "User Commands"
+.TH fag 1 "16 February 2018" "1.2" "User Commands"
 .hy 0
 .SH NAME
 fag \- daemonize program after a regular expression pattern was matched (ForkAfterGrep)
@@ -35,7 +35,7 @@ defaults to
 .BR SIGTERM " (15)."
 Right now, only decimal notation is implemented.
 .TP
-.BR \-e
+.BR \-r
 Search
 .IR PATTERN
 on
@@ -79,6 +79,12 @@ gets interrupted or terminated,
 .BR SIGTERM
 is sent to 
 .IR PROGRAM.
+.PP
+In 1.2 the command line switch 
+.B \-e was renamed to 
+.B \-r
+to avoid overloading 
+.B grep\fR's own switches.
 .SH COPYRIGHT
 Copyright 2017 Tobias Girstmair. This is free software; see https://www.gnu.org/licenses/gpl-3.0.html for conditions.
 .SH AUTHOR
