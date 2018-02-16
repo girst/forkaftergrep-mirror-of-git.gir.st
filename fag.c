@@ -1,7 +1,7 @@
 /* forkaftergrep (C) 2017 Tobias Girstmair, GPLv3 */
 //TODO: if grep exits with an error, fag thinks a match was found (e.g. grep -BEP, killall grep)
-//TODO: allow redirect of both streams to files
-//TODO: grep is missing `-e' and `-f' options
+//TODO: allow redirect of both streams to files (have to simulate `tee(1)' in the pipe-passer and the dummy-proc; instead of closing nontracked fd redirect to logfile/devnull)
+//TODO: grep is missing `-e' and `-f' options; fag's `-e' collides with grep's
 
 #define _XOPEN_SOURCE 500
 #define _DEFAULT_SOURCE
@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sysexits.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -20,13 +21,12 @@
 pid_t cpid = 0;
 
 void term_child(int s) {
-	(void)s; /* squash -Werror=unused-parameter */
-	if (cpid != 0) kill (cpid, SIGTERM);
+	if (cpid != 0) kill (cpid, s);
 	exit(1);
 }
 
 int main (int argc, char** argv) {
-	struct opt opts = {0, 0, 0, NULL, NULL, STDOUT_FILENO, "-q"};
+	struct opt opts = {0, 0, 0, NULL, NULL, "/dev/null", "/dev/null", STDOUT_FILENO, "-q"};
 	/* `-q': don't print anything; exit with 0 on match; with 1 on error. used to interface with `grep' */
 	int opt;
 	opterr = 0;
@@ -42,7 +42,7 @@ int main (int argc, char** argv) {
 
 
 	/* the `+' forces getopt to stop at the first non-option */
-	while ((opt = getopt (argc, argv, "+t:k::er:VhvEFGPiwxyU")) != -1) {
+	while ((opt = getopt (argc, argv, "+t:k::el:L:VhvEFGPiwxyU")) != -1) {
 		switch (opt) {
 		case 't':
 			opts.timeout = atoi (optarg);
@@ -53,6 +53,12 @@ int main (int argc, char** argv) {
 		case 'e':
 			opts.stream = STDERR_FILENO;
 			break;
+		case 'l':
+			opts.logout = optarg;
+			break;
+		case 'L':
+			opts.logerr = optarg;
+			break;
 		case 'V':
 			opts.verbose = 1;
 			break;
@@ -60,8 +66,10 @@ int main (int argc, char** argv) {
 			fprintf (stderr, VERTEXT USAGE
 				"Options:\n"
 				"\t-t N\ttimeout after N seconds\n"
-				"\t-k[M]\tsend signal M to child after timeout (default: 15/SIGTERM)\n"
+				"\t-k[N]\tsend signal N to child after timeout (default: 15/SIGTERM)\n"
 				"\t-e\tgrep on stderr instead of stdout\n"
+				"\t-l FILE\tlog PROGRAM's standard output to FILE\n"
+				"\t-L FILE\tlog PROGRAM's standard error to FILE\n"
 				"\t-V\tbe verbose; print PROGRAM's stdout/stderr to stderr\n"
 				"\t-[EFP]\tgrep: matcher selection\n"
 				"\t-[iwxU]\tgrep: matching control\n", argv[0]);
@@ -104,7 +112,8 @@ int main (int argc, char** argv) {
 
 int fork_after_grep (struct opt opts) {
 	int pipefd[2];
-	//pid_t cpid;
+	int pipefd_cpid[2]; /* IPC to extract PID from daemonized userprog */
+	pid_t tmp_cpid;
 	int status;
 
 	char buf[BUF_SIZE];
@@ -117,14 +126,25 @@ int fork_after_grep (struct opt opts) {
 		return EX_OSERR;
 	}
 
-	if ((cpid = fork()) == -1) {
-		fprintf (stderr, "fork error (userprog): %s", strerror (errno));
+	if(pipe(pipefd_cpid) == -1) {
+		fprintf (stderr, "pipe error (cpid-ipc)\n");
 		close (pipefd[0]);
 		close (pipefd[1]);
 		return EX_OSERR;
 	}
 
-	if (cpid == 0) {
+	if ((tmp_cpid = fork()) == -1) {
+		fprintf (stderr, "fork error (daemonizer): %s", strerror (errno));
+		close (pipefd[0]);
+		close (pipefd[1]);
+		close (pipefd_cpid[0]);
+		close (pipefd_cpid[1]);
+		return EX_OSERR;
+	}
+
+	if (tmp_cpid == 0) {
+		pid_t cpid_userprog;
+
 		close (pipefd[0]);
 		dup2 (pipefd[1], opts.stream);
 		close (pipefd[1]);
@@ -132,17 +152,36 @@ int fork_after_grep (struct opt opts) {
 		close (opts.stream==STDOUT_FILENO?STDERR_FILENO:STDOUT_FILENO);
 
 		if (setsid () == -1) {
-			fprintf (stderr, "setsid error (userprog): %s", strerror (errno));
+			fprintf (stderr, "setsid error (daemonizer): %s", strerror (errno));
 			_exit (EX_OSERR);
 		}
 
-		execvp (opts.argv[0], opts.argv);
-		fprintf (stderr, "exec error (userprog): %s", strerror (errno));
+		if ((cpid_userprog = fork()) == -1) {
+			fprintf (stderr, "fork error (userprog): %s", strerror (errno));
+			_exit (EX_OSERR);
+		}
+		if (cpid_userprog == 0) {
+			close(pipefd_cpid[0]);
+			close(pipefd_cpid[1]);
+
+			execvp (opts.argv[0], opts.argv);
+			fprintf (stderr, "exec error (userprog): %s", strerror (errno));
+		} else {
+			/* only way to get final child's pid to main is through IPC */
+			write(pipefd_cpid[1], &cpid_userprog, sizeof(pid_t));
+			close(pipefd_cpid[0]);
+			close(pipefd_cpid[1]);
+		}
 		_exit (EX_UNAVAILABLE);
 	} else {
 		pid_t grep_cpid;
 		int grep_pipefd[2];
 		int grep_status;
+
+		/* read userprog's PID from IPC: */
+		read(pipefd_cpid[0], &cpid, sizeof(pid_t));
+		close(pipefd_cpid[0]);
+		close(pipefd_cpid[1]);
 
 		close (pipefd[1]);
 		fcntl (pipefd[0], F_SETFL, fcntl (pipefd[0], F_GETFL, 0) | O_NONBLOCK);
@@ -213,16 +252,18 @@ int fork_after_grep (struct opt opts) {
 					if (WEXITSTATUS(grep_status) == 0) {
 						/* grep exited with match found */
 						printf ("%d\n", cpid);
+						fflush (stdout);
 
-						/* create a new child to keep pipe alive (will exit with exec'd program) */
-						if (!fork ()) {
+						/* create a new child to keep pipe alive, empty it and write log files (will exit with exec'd program) */
+						if (!fork()){setsid();if(!fork()) {
+							close(0); close(1); close(2); umask(0); chdir("/");
 							int devnull = open("/dev/null", O_WRONLY);
 							dup2 (devnull, pipefd[0]);
 							close  (devnull);
 							while (kill(cpid, 0) != -1 && errno != ESRCH ) sleep (1);
 							close (pipefd[0]);
 							_exit(0);
-						}
+						}}
 						close (pipefd[0]);
 						return EX_OK;
 					} else {

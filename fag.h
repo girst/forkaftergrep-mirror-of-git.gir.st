@@ -2,9 +2,9 @@
 #define __FAG_H__
 
 #define PROGRNAME "fag"
-#define VERSION "1.1"
+#define VERSION "1.2"
 #define AUTHOR "Tobias Girstmair"
-#define YEAR "2017"
+#define YEAR "2018"
 #define LICENSE "GNU GPLv3"
 
 #define BUF_SIZE 4096
@@ -18,6 +18,8 @@ struct opt {
 	int verbose;
 	char* pattern;
 	char** argv;
+	char* logout;
+	char* logerr;
 	int stream;
 	char grepopt[16];
 };
