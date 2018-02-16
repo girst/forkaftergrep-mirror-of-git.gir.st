@@ -1,7 +1,7 @@
 .TH fag 1 "16 February 2018" "1.2" "User Commands"
 .hy 0
 .SH NAME
-fag \- daemonize program after a regular expression pattern was matched (ForkAfterGrep)
+fag \- daemonize program after a pattern was matched (ForkAfterGrep)
 .
 .SH SYNOPSIS
 .B fag
@@ -22,21 +22,27 @@ and daemonizes it when a match is found. The PID is then returned on stdout.
 .SH OPTIONS
 .SS "Behaviour Changing Options"
 .TP
-.BI \-t " SECONDS" "\fR
-Set a timeout of
+.BI \-t " SECONDS"
+Abort matching after
 .I SECONDS
-seconds.
+seconds and print 
+.IR PROGRAM 's
+PID. Unless
+.BR \-k
+is given, PROGRAM is kept running and daemonized.
 .TP
 .BR \-k "[" \fISIGNAL\fP "]
-If given, send a signal to
+If the timeout
+.RB ( \-t )
+has been reached, send a signal to
 .IR PROGRAM .
 .I SIGNAL
 defaults to 
 .BR SIGTERM " (15)."
-Right now, only decimal notation is implemented.
+The signal may only be given as a number.
 .TP
 .BR \-r
-Search
+Search for
 .IR PATTERN
 on
 .BR stderr
@@ -45,25 +51,25 @@ instead of
 .TP
 .BI \-l " FILE "
 Log
-.IR PROGRAM\fR's
+.IR PROGRAM 's
 .BR stdout
 to
 .IR FILE .
-The file will be opened in append mode and created with permissions 0600 if it doesn't exist.
+The file will be opened in append mode. If the file does not exist, it will be created with file mode \fI0600\fR.
 .TP
 .BI \-L " FILE "
 Same as 
 .BR \-l
 but logs
-.IR PROGRAM\fR's
+.IR PROGRAM 's
 .BR stderr .
 .TP
 .BR \-V
-Be verbose; print program's
-.BR stdout
-(or stderr if
-.BR \-r
-is set) to stderr. 
+Be verbose; print
+.IR PROGRAM 's
+monitored stream
+to
+.BR stderr .
 .SS "Generic Program Information"
 .TP
 .B \-h
@@ -84,17 +90,21 @@ Decompression switches for
 .IR gzip (1)
 and 
 .IR bzip2 (1).
-Not widely supported; check your \fBgrep\fR's capabilities.
+Not widely supported; check your
+.BR grep 's
+capabilities.
 .SH EXIT STATUS
 If
 .IR PATTERN
 was found, 0 is returned. Otherwise, the exit status follows the BSD guideline outlined in 
 .B #include <sysexits.h>
-if the error occured from within
+if the error occurred from within
 .B fag
-or in case the chid process exits prematurely, its exit code is inherited. Notably, \fI69\fP is returned when the timeout is reached.
+or in case the child process exits prematurely, its exit code is inherited. Notably, \fI69\fP is returned when the timeout is reached.
 .SH BUGS
 .SS Known Bugs
+logging stops when a timeout is reached.
+.PP
 if grep gets killed (e.g. `killall grep'), fag should terminate. 
 .SS Reporting Bugs
 Please report bugs and patches to the issue tracker at https://github.com/girst/forkaftergrep/. 
@@ -115,7 +125,8 @@ In version 1.2 the command line switch
 .B \-e was renamed to 
 .B \-r
 to avoid overloading 
-.B grep\fR's own switches. An error will be thrown when
+.BR grep 's
+own switches. An error will be thrown when
 .BR \-e
 or
 .BR \-f

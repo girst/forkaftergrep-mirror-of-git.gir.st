@@ -329,7 +329,11 @@ int fork_after_grep (struct opt opts) {
 					timersub (&now, &begin, &diff);
 					if (diff.tv_sec >= opts.timeout) {
 						fprintf (stderr, "Timeout reached. \n");
+						printf ("%d\n", cpid);
+						fflush (stdout);
+
 						if (opts.kill_sig > 0) kill (cpid, opts.kill_sig);
+
 						close (pipefd[0]);
 						close (grep_pipefd[1]);
 						close (primary_logfile);
