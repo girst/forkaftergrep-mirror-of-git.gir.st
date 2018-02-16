@@ -43,11 +43,26 @@ on
 instead of 
 .BR stdout .
 .TP
+.BI \-l " FILE "
+Log
+.IR PROGRAM\fR's
+.BR stdout
+to
+.IR FILE .
+The file will be opened in append mode and created with permissions 0600 if it doesn't exist.
+.TP
+.BI \-L " FILE "
+Same as 
+.BR \-l
+but logs
+.IR PROGRAM\fR's
+.BR stderr .
+.TP
 .BR \-V
 Be verbose; print program's
 .BR stdout
 (or stderr if
-.BR \-e
+.BR \-r
 is set) to stderr. 
 .SS "Generic Program Information"
 .TP
@@ -56,6 +71,20 @@ Output a short usage message and exit.
 .TP
 .BR \-v
 Display version and copyright information and exit.
+.SS "Supported grep Options"
+.TP
+.BR \-E ", " \-F ", " \-G ", " \-P
+Matcher selection switches for extended regular expressions, fixed strings, basic regular expressions (default) or Perl-compatible regular expressions. You may only supply one of them.
+.TP
+.BR \-i ", " \-w ", " \-x ", " \-U
+Matching control switches for ignore case distinctions, whole words only, whole lines only and treat as binary. 
+.TP
+.BR \-Z ", " \-J
+Decompression switches for 
+.IR gzip (1)
+and 
+.IR bzip2 (1).
+Not widely supported; check your \fBgrep\fR's capabilities.
 .SH EXIT STATUS
 If
 .IR PATTERN

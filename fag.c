@@ -1,5 +1,4 @@
 /* forkaftergrep (C) 2017 Tobias Girstmair, GPLv3 */
-//TODO: allow redirect of both streams to files (have to simulate `tee(1)' in the pipe-passer and the dummy-proc; instead of closing nontracked fd redirect to logfile/devnull)
 //TODO: grep is missing `-e' and `-f' options
 
 #define _XOPEN_SOURCE 500
@@ -53,11 +52,9 @@ int main (int argc, char** argv) {
 			opts.stream = STDERR_FILENO;
 			break;
 		case 'l':
-			fprintf (stderr, "WARNING: `-l' not currently implemented\n");
 			opts.logout = optarg;
 			break;
 		case 'L':
-			fprintf (stderr, "WARNING: `-L' not currently implemented\n");
 			opts.logerr = optarg;
 			break;
 		case 'V':
@@ -123,6 +120,9 @@ int fork_after_grep (struct opt opts) {
 	pid_t tmp_cpid;
 	int status;
 
+	int primary_logfile;
+	int secondary_logfile;
+
 	char buf[BUF_SIZE];
 	int nbytes;
 
@@ -140,12 +140,37 @@ int fork_after_grep (struct opt opts) {
 		return EX_OSERR;
 	}
 
+	/* Writing the -l and -L log files is a bit messy. We can easily just pipe the stream we aren't monitoring
+	into the secondary_logfile, but we can't do that for the primary_logfile. This one we write to from the piping
+	process, where -V is also handled at and in the keep-pipe-alive-daemon. */
+	primary_logfile = open((opts.stream==STDOUT_FILENO?opts.logout:opts.logerr), O_WRONLY|O_APPEND|O_CREAT, 0600);
+	if (primary_logfile == -1) {
+		fprintf (stderr, "error opening logfile (stdout): %s\n", strerror(errno));
+		close (pipefd[0]);
+		close (pipefd[1]);
+		close (pipefd_cpid[0]);
+		close (pipefd_cpid[1]);
+		return EX_OSFILE;
+	}
+	secondary_logfile = open((opts.stream==STDOUT_FILENO?opts.logerr:opts.logout), O_WRONLY|O_APPEND|O_CREAT, 0600);
+	if (secondary_logfile == -1) {
+		fprintf (stderr, "error opening logfile (stderr): %s\n", strerror(errno));
+		close (pipefd[0]);
+		close (pipefd[1]);
+		close (pipefd_cpid[0]);
+		close (pipefd_cpid[1]);
+		close (primary_logfile);
+		return EX_OSFILE;
+	}
+
 	if ((tmp_cpid = fork()) == -1) {
 		fprintf (stderr, "fork error (daemonizer): %s", strerror (errno));
 		close (pipefd[0]);
 		close (pipefd[1]);
 		close (pipefd_cpid[0]);
 		close (pipefd_cpid[1]);
+		close (primary_logfile);
+		close (secondary_logfile);
 		return EX_OSERR;
 	}
 
@@ -155,8 +180,9 @@ int fork_after_grep (struct opt opts) {
 		close (pipefd[0]);
 		dup2 (pipefd[1], opts.stream);
 		close (pipefd[1]);
-		//dup2 (open("/dev/null", O_WRONLY), opts.stream==STDOUT_FILENO?STDERR_FILENO:STDOUT_FILENO);
-		close (opts.stream==STDOUT_FILENO?STDERR_FILENO:STDOUT_FILENO);
+		dup2 (secondary_logfile, opts.stream==STDOUT_FILENO?STDERR_FILENO:STDOUT_FILENO);
+		close (primary_logfile);
+		close (secondary_logfile);
 
 		if (setsid () == -1) {
 			fprintf (stderr, "setsid error (daemonizer): %s", strerror (errno));
@@ -191,6 +217,7 @@ int fork_after_grep (struct opt opts) {
 		close(pipefd_cpid[1]);
 
 		close (pipefd[1]);
+		close (secondary_logfile);
 		fcntl (pipefd[0], F_SETFL, fcntl (pipefd[0], F_GETFL, 0) | O_NONBLOCK);
 
 		gettimeofday (&begin, NULL); /* for timeout */
@@ -250,6 +277,8 @@ int fork_after_grep (struct opt opts) {
 						write(STDERR_FILENO, buf, nbytes);
 					}
 
+					write(primary_logfile, buf, nbytes);
+
 					write(grep_pipefd[1], buf, nbytes); /* can cause SIGPIPE if grep exited, therefore signal will be ignored */
 				}
 
@@ -264,20 +293,27 @@ int fork_after_grep (struct opt opts) {
 						/* create a new child to keep pipe alive, empty it and write log files (will exit with exec'd program) */
 						if (!fork()){setsid();if(!fork()) {
 							close(0); close(1); close(2); umask(0); chdir("/");
-							int devnull = open("/dev/null", O_WRONLY);
-							dup2 (devnull, pipefd[0]);
-							close  (devnull);
-							while (kill(cpid, 0) != -1 && errno != ESRCH ) sleep (1);
+							for (;;) {
+								usleep (20000);
+								nbytes = read (pipefd[0], buf, BUF_SIZE);
+
+								if ((nbytes == -1 && errno != EAGAIN) || nbytes == 0) break;
+
+								write(primary_logfile, buf, nbytes);
+							}
 							close (pipefd[0]);
+							close (primary_logfile);
 							_exit(0);
 						}}
 						close (pipefd[0]);
+						close (primary_logfile);
 						return EX_OK;
 					} else {
 						/* grep exited due to an error */
 						fprintf (stderr, "grep exited due to an error.\n");
 						close (pipefd[0]);
 						close (grep_pipefd[1]);
+						close (primary_logfile);
 						return EX_IOERR;
 					}
 				}
@@ -290,6 +326,7 @@ int fork_after_grep (struct opt opts) {
 						if (opts.kill_sig > 0) kill (cpid, opts.kill_sig);
 						close (pipefd[0]);
 						close (grep_pipefd[1]);
+						close (primary_logfile);
 						kill (grep_cpid, SIGTERM);
 						return EX_UNAVAILABLE;
 					}
