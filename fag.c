@@ -5,6 +5,7 @@
 #define _DEFAULT_SOURCE
 #include <errno.h>
 #include <fcntl.h>
+#include <libgen.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -243,7 +244,12 @@ int fork_after_grep (struct opt opts) {
 
 			close (STDOUT_FILENO);
 
-			execlp ("grep", "grep", opts.grepopt, "--", opts.pattern, NULL);
+			char* grep_override = getenv("GREP_OVERRIDE");
+			if (grep_override != NULL) {
+				execlp (grep_override, basename(grep_override), opts.grepopt, "--", opts.pattern, NULL);
+			} else {
+				execlp ("grep", "grep", opts.grepopt, "--", opts.pattern, NULL);
+			}
 			fprintf (stderr, "exec error (grep): %s", strerror (errno));
 			_exit (EX_SOFTWARE);
 		} else {

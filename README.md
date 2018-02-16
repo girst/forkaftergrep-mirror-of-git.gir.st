@@ -20,19 +20,40 @@ OPTIONS
        -t SECONDS
               Set a timeout of SECONDS seconds.
 
-       -k [SIGNAL]
+       -k[SIGNAL]
               If given, send a signal to PROGRAM.  SIGNAL defaults to  SIGTERM
               (15).  Right now, only decimal notation is implemented.
 
-       -e     Search PATTERN on stderr instead of stdout.
+       -r     Search PATTERN on stderr instead of stdout.
 
-       -V     Be  verbose;  print program's stdout (or stderr if -e is set) to
+       -l FILE
+              Log PROGRAM's stdout to FILE.  The file will be opened in append
+              mode and created with permissions 0600 if it doesn't exist.
+
+       -L FILE
+              Same as -l but logs PROGRAM's stderr.
+
+       -V     Be verbose; print program's stdout (or stderr if -r is  set)  to
               stderr.
 
    Generic Program Information
        -h     Output a short usage message and exit.
 
        -v     Display version and copyright information and exit.
+
+   Supported grep Options
+       -E, -F, -G, -P
+              Matcher  selection  switches  for  extended regular expressions,
+              fixed strings, basic  regular  expressions  (default)  or  Perl-
+              compatible  regular  expressions.  At  most  one  of them may be
+              supplied.
+
+       -i, -w, -x, -U
+              Matching control switches for ignore  case  distinctions,  whole
+              words only, whole lines only and treat as binary.
+
+       -Z, -J Decompression  switches  for  gzip(1)  and bzip2(1).  Not widely
+              supported; check your grep's capabilities.
 
 EXIT STATUS
        If PATTERN was found, 0 is returned. Otherwise, the exit status follows
@@ -50,20 +71,26 @@ BUGS
        https://github.com/girst/forkaftergrep/.
 
 NOTES
-       SIGNAL needs to be given as an integer. implementing mnemonics is dirty
-       and not very portable; maybe support in the future.
+       Usually,  fag uses the grep supplied in the path. This behaviour can be
+       overridden with the environment variable GREP_OVERRIDE.
 
-       Since 1.1, if fag gets interrupted or terminated, SIGTERM  is  sent  to
+       Since 1.2, if fag gets interrupted or  terminated  before  a  match  is
+       found  (or  the  timeout  has  been  reached), this signal is passed to
        PROGRAM.
 
+       In version 1.2 the command line switch -e was renamed to  -r  to  avoid
+       overloading  grep's own switches. An error will be thrown when -e or -f
+       is supplied as an argument.
+
 COPYRIGHT
-       Copyright   2017   Tobias   Girstmair.   This  is  free  software;  see
+       Copyright 2017-2018 Tobias Girstmair. This is  free  software  released
+       under  the  terms  of  the  GNU  General  Public License Version 3; see
        https://www.gnu.org/licenses/gpl-3.0.html for conditions.
 
 AUTHOR
-       Tobias Girstmair (https://gir.st)
+       Tobias Girstmair (https://gir.st/)
 
-1.1                             13 October 2017                         fag(1)
+1.2                            16 February 2018                         fag(1)
 ```
 
 ## Notes

@@ -27,7 +27,7 @@ Set a timeout of
 .I SECONDS
 seconds.
 .TP
-.BR \-k " [" \fISIGNAL\fP "]
+.BR \-k "[" \fISIGNAL\fP "]
 If given, send a signal to
 .IR PROGRAM .
 .I SIGNAL
@@ -74,7 +74,7 @@ Display version and copyright information and exit.
 .SS "Supported grep Options"
 .TP
 .BR \-E ", " \-F ", " \-G ", " \-P
-Matcher selection switches for extended regular expressions, fixed strings, basic regular expressions (default) or Perl-compatible regular expressions. You may only supply one of them.
+Matcher selection switches for extended regular expressions, fixed strings, basic regular expressions (default) or Perl-compatible regular expressions. At most one of them may be supplied.
 .TP
 .BR \-i ", " \-w ", " \-x ", " \-U
 Matching control switches for ignore case distinctions, whole words only, whole lines only and treat as binary. 
@@ -99,22 +99,28 @@ if grep gets killed (e.g. `killall grep'), fag should terminate.
 .SS Reporting Bugs
 Please report bugs and patches to the issue tracker at https://github.com/girst/forkaftergrep/. 
 .SH NOTES
-.IR SIGNAL
-needs to be given as an integer. implementing mnemonics is dirty and not very portable; maybe support in the future.
-.PP
-Since 1.1, if
+Usually,
 .B fag
-gets interrupted or terminated, 
-.BR SIGTERM
-is sent to 
-.IR PROGRAM.
+uses the
+.B grep 
+supplied in the path. This behaviour can be overridden with the environment variable
+.IR GREP_OVERRIDE .
 .PP
-In 1.2 the command line switch 
+Since 1.2, if
+.B fag
+gets interrupted or terminated before a match is found (or the timeout has been reached), this signal is passed to 
+.IR PROGRAM .
+.PP
+In version 1.2 the command line switch 
 .B \-e was renamed to 
 .B \-r
 to avoid overloading 
-.B grep\fR's own switches.
+.B grep\fR's own switches. An error will be thrown when
+.BR \-e
+or
+.BR \-f
+is supplied as an argument.
 .SH COPYRIGHT
-Copyright 2017 Tobias Girstmair. This is free software; see https://www.gnu.org/licenses/gpl-3.0.html for conditions.
+Copyright 2017-2018 Tobias Girstmair. This is free software released under the terms of the GNU General Public License Version 3; see https://www.gnu.org/licenses/gpl-3.0.html for conditions.
 .SH AUTHOR
-Tobias Girstmair (https://gir.st)
+Tobias Girstmair (https://gir.st/)
