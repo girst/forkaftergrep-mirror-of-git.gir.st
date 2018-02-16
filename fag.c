@@ -1,7 +1,6 @@
 /* forkaftergrep (C) 2017 Tobias Girstmair, GPLv3 */
-//TODO: if grep exits with an error, fag thinks a match was found (e.g. grep -BEP, killall grep)
 //TODO: allow redirect of both streams to files (have to simulate `tee(1)' in the pipe-passer and the dummy-proc; instead of closing nontracked fd redirect to logfile/devnull)
-//TODO: grep is missing `-e' and `-f' options; fag's `-e' collides with grep's
+//TODO: grep is missing `-e' and `-f' options
 
 #define _XOPEN_SOURCE 500
 #define _DEFAULT_SOURCE
@@ -42,7 +41,7 @@ int main (int argc, char** argv) {
 
 
 	/* the `+' forces getopt to stop at the first non-option */
-	while ((opt = getopt (argc, argv, "+t:k::el:L:VhvEFGPiwxyU")) != -1) {
+	while ((opt = getopt (argc, argv, "+t:k::rl:L:VhvEFGPiwxyUZJe:f:")) != -1) {
 		switch (opt) {
 		case 't':
 			opts.timeout = atoi (optarg);
@@ -50,13 +49,15 @@ int main (int argc, char** argv) {
 		case 'k':
 			opts.kill_sig = optarg ? atoi (optarg) : SIGTERM;
 			break;
-		case 'e':
+		case 'r':
 			opts.stream = STDERR_FILENO;
 			break;
 		case 'l':
+			fprintf (stderr, "WARNING: `-l' not currently implemented\n");
 			opts.logout = optarg;
 			break;
 		case 'L':
+			fprintf (stderr, "WARNING: `-L' not currently implemented\n");
 			opts.logerr = optarg;
 			break;
 		case 'V':
@@ -67,20 +68,26 @@ int main (int argc, char** argv) {
 				"Options:\n"
 				"\t-t N\ttimeout after N seconds\n"
 				"\t-k[N]\tsend signal N to child after timeout (default: 15/SIGTERM)\n"
-				"\t-e\tgrep on stderr instead of stdout\n"
-				"\t-l FILE\tlog PROGRAM's standard output to FILE\n"
-				"\t-L FILE\tlog PROGRAM's standard error to FILE\n"
-				"\t-V\tbe verbose; print PROGRAM's stdout/stderr to stderr\n"
-				"\t-[EFP]\tgrep: matcher selection\n"
-				"\t-[iwxU]\tgrep: matching control\n", argv[0]);
+				"\t-r\tgrep on stderr instead of stdout\n"
+				"\t-l FILE\tlog PROGRAM's stdout to FILE\n"
+				"\t-L FILE\tlog PROGRAM's stderr to FILE\n"
+				"\t-V\tbe verbose; print monitored stream to stderr\n"
+				"\t-[EFGP]\tgrep: matcher selection\n"
+				"\t-[iwxU]\tgrep: matching control\n"
+				"\t-[ZJ]\tgrep: decompression control\n", argv[0]);
 			return EX_OK;
 		case 'v':
 			fprintf (stderr, VERTEXT);
 			return EX_OK;
-		/* `grep' options (Note: missing `-e:', `-f:') */
+		case 'e': case 'f':
+			fprintf (stderr, "`grep -e' and `-f' are not implemented yet!\n");
+			return EX_SOFTWARE;
+			break;
 		case 'E': case 'F': case 'G': case 'P':
 		case 'i': case 'y': case 'w': case 'x':
-		case 'U': *(p++)=opt; break;
+		case 'U': case 'Z': case 'J':
+			*(p++)=opt;
+			break;
 
 		default: 
 			fprintf (stderr, "Unrecognized option: %c\n" USAGE, optopt, argv[0]);
