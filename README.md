@@ -77,6 +77,10 @@ NOTES
        Usually, fag uses the grep supplied in the path. This behaviour can  be
        overridden with the environment variable GREP_OVERRIDE.
 
+       fag  works best when PROGRAM's output is line-buffered.  stdbuf(1) from
+       the GNU coreutils can adjust buffering options. If a program  is  still
+       too clever, script(1) creates a pty to wrap around a program.
+
        Since  1.2,  if  fag  gets  interrupted or terminated before a match is
        found (or the timeout has been  reached),  this  signal  is  passed  to
        PROGRAM.
@@ -116,3 +120,14 @@ Wait for `tzap-t2` (DVB-T2 version of `tzap`) to tune into a channel or abort af
 Start [mopidy](https://www.mopidy.com/) and wait for the MPD service to have started up:
 
     fag -rV -L /tmp/mopidy.log "MPD server running at" mopidy
+
+
+### On Buffering
+
+Some programs will detect that their output is not going to a terminal and switch to using a large buffer size. Most of the time it is sufficient to wrap such a program with `stdbuf`(1) like so:
+
+    fag PATTTERN stdbuf -oL PROGRAM
+
+Stubborn programs can also be coaxed into line-buffering by executing them in a pty, for example with `script`(1): [via](https://stackoverflow.com/a/55655115)
+
+    script -qfc "$(printf "%q " "$@")" /dev/null

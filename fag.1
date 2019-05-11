@@ -116,6 +116,15 @@ uses the
 supplied in the path. This behaviour can be overridden with the environment variable
 .IR GREP_OVERRIDE .
 .PP
+.B fag
+works best when
+.IR PROGRAM 's
+output is line-buffered.
+.BR stdbuf (1)
+from the GNU coreutils can adjust buffering options. If a program is still too clever,
+.BR script (1)
+creates a pty to wrap around a program.
+.PP
 Since 1.2, if
 .B fag
 gets interrupted or terminated before a match is found (or the timeout has been reached), this signal is passed to 
